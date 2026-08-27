@@ -307,6 +307,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 "use strict";
+const $ = id => document.getElementById(id);
+
 /* =====================================================================
    VALLEY STRIKE — single-file 3D drone combat
    ===================================================================== */
@@ -1150,7 +1152,6 @@ function tryRocket(){
 /* =====================================================================
    UI
    ===================================================================== */
-const $ = id => document.getElementById(id);
 const hud = $('hud'), radar = $('radar'), rctx = radar.getContext('2d');
 function updateHud(){
   $('ui-level').textContent = state.level;

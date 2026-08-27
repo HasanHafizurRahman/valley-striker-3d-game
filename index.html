@@ -13,7 +13,7 @@
   html,body{width:100%;height:100%;overflow:hidden;background:#03080d;
     font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--hud);
     -webkit-user-select:none;user-select:none;touch-action:none}
-  #c{display:block;width:100%;height:100%;touch-action:none}
+  #c{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
 
   /* ---------- HUD ---------- */
   #hud{position:fixed;inset:0;pointer-events:none;display:none;z-index:5}
@@ -282,7 +282,7 @@
   <h1>VALLEY <span>STRIKE</span></h1>
   <div class="tag">tactical drone combat · endless levels</div>
   <div class="ctrls" id="ctrls-guide">
-    <b>Steer &amp; aim</b><span>Drone flies where you aim — Move mouse / Swipe right side / Tilt phone</span>
+    <b>Steer &amp; aim</b><span>Drone flies toward your cursor — hold it left/right/up/down of center / Swipe right side / Tilt phone</span>
     <b>Fire cannons</b><span>Hold <kbd>Left click</kbd> / <kbd>FIRE</kbd> button</span>
     <b>Fire rocket</b><span><kbd>Right click</kbd> / <kbd>Q</kbd> / <kbd>MISSILE</kbd></span>
     <b>Speed &amp; Strafe</b><span><kbd>W</kbd> faster · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> strafe / Left Joystick</span>
@@ -966,22 +966,23 @@ addEventListener('mousedown', e=>{
 });
 addEventListener('mouseup', e=>{ if(e.button===0) mouseDown = false; });
 addEventListener('contextmenu', e=>e.preventDefault());
-addEventListener('mousemove', e=>{
-  if(!state.running || state.paused || state.over) return;
-  if(document.pointerLockElement !== canvas) return;
-  player.yawT   -= e.movementX * 0.0021;
-  player.pitchT -= e.movementY * 0.0019;
-  player.pitchT = Math.max(-1.15, Math.min(1.15, player.pitchT));
-});
-document.addEventListener('pointerlockchange', ()=>{
-  if(document.pointerLockElement !== canvas && state.running && !state.over && !state.paused && !isTouchDevice){
-    pauseGame();
+/* Pointer-position steering (PC): the visible cursor is the flight director.
+   Hold it left of center → drone turns left; above center → nose up; distance = intensity. */
+const pointer = {x: innerWidth/2, y: innerHeight/2};
+let usingMouse = !IS_MOBILE;
+// pointermove (not mousemove) so we can tell a real mouse/pen from a finger —
+// touchscreen laptops report touch support, but the mouse must still steer.
+addEventListener('pointermove', e=>{
+  if(e.pointerType === 'mouse' || e.pointerType === 'pen'){
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
+    usingMouse = true;
   }
 });
-canvas.addEventListener('click', ()=>{
-  if(state.running && !state.paused && !state.over && document.pointerLockElement !== canvas && !isTouchDevice){
-    canvas.requestPointerLock();
-  }
+addEventListener('touchstart', ()=>{ usingMouse = false; }, {passive:true, capture:true});
+// if the cursor leaves the window, level out instead of turning forever
+document.addEventListener('mouseout', e=>{
+  if(!e.relatedTarget){ pointer.x = innerWidth/2; pointer.y = innerHeight/2; }
 });
 
 /* ---------- Mobile Touch & Gyro Handling ---------- */
@@ -1311,12 +1312,10 @@ function resetGame(){
 function pauseGame(){
   state.paused = true;
   $('pause').style.display = 'flex';
-  if(document.pointerLockElement === canvas) document.exitPointerLock();
 }
 function resumeGame(){
   state.paused = false;
   $('pause').style.display = 'none';
-  if(!isTouchDevice) canvas.requestPointerLock();
   last = performance.now();
 }
 function gameOver(){
@@ -1329,7 +1328,6 @@ function gameOver(){
   $('finalstats').innerHTML = 'SCORE ' + state.score + ' &nbsp;·&nbsp; REACHED LEVEL ' + state.level;
   setTimeout(()=>{
     $('gameover').style.display = 'flex';
-    if(document.pointerLockElement === canvas) document.exitPointerLock();
   }, 1100);
 }
 $('startbtn').addEventListener('click', ()=>{
@@ -1337,12 +1335,10 @@ $('startbtn').addEventListener('click', ()=>{
   $('startscreen').style.display = 'none';
   hud.style.display = 'block';
   resetGame();
-  if(!isTouchDevice) canvas.requestPointerLock();
 });
 $('retrybtn').addEventListener('click', ()=>{
   $('gameover').style.display = 'none';
   resetGame();
-  if(!isTouchDevice) canvas.requestPointerLock();
 });
 $('resumebtn').addEventListener('click', resumeGame);
 
@@ -1390,6 +1386,18 @@ function afterKill(){
 }
 
 function updatePlayer(dt){
+  // Pointer steering: cursor offset from screen center drives turn rate & pitch.
+  // Active whenever the player is using a mouse — hands off to touch/gyro otherwise.
+  if(usingMouse){
+    const nx = (pointer.x / innerWidth) * 2 - 1;    // -1 (left) .. 1 (right)
+    const ny = (pointer.y / innerHeight) * 2 - 1;   // -1 (top)  .. 1 (bottom)
+    const dead = 0.07;
+    const sx = Math.abs(nx) > dead ? (nx - Math.sign(nx)*dead) / (1 - dead) : 0;
+    const sy = Math.abs(ny) > dead ? (ny - Math.sign(ny)*dead) / (1 - dead) : 0;
+    player.yawT  -= sx * Math.abs(sx) * 2.6 * dt;   // squared curve: fine aim near center, hard bank at edges
+    player.pitchT = Math.max(-1.15, Math.min(1.15, -sy * 1.1));
+  }
+
   // Gyroscope steering integration (writes to the smoothed-aim target)
   if(touchState.gyroActive){
     player.yawT += touchState.targetYawRate * dt;

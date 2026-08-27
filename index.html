@@ -282,10 +282,10 @@
   <h1>VALLEY <span>STRIKE</span></h1>
   <div class="tag">tactical drone combat · endless levels</div>
   <div class="ctrls" id="ctrls-guide">
-    <b>Steer &amp; aim</b><span>Move mouse / Swipe right side / Tilt phone</span>
+    <b>Steer &amp; aim</b><span>Drone flies where you aim — Move mouse / Swipe right side / Tilt phone</span>
     <b>Fire cannons</b><span>Hold <kbd>Left click</kbd> / <kbd>FIRE</kbd> button</span>
     <b>Fire rocket</b><span><kbd>Right click</kbd> / <kbd>Q</kbd> / <kbd>MISSILE</kbd></span>
-    <b>Throttle &amp; Strafe</b><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Arrow keys / Left Joystick</span>
+    <b>Speed &amp; Strafe</b><span><kbd>W</kbd> faster · <kbd>S</kbd> brake · <kbd>A</kbd><kbd>D</kbd> strafe / Left Joystick</span>
     <b>Altitude</b><span><kbd>Space</kbd> climb · <kbd>C</kbd> drop / ▲ ▼ buttons</span>
     <b>Boost</b><span>Hold <kbd>Shift</kbd> / <kbd>BOOST</kbd> button</span>
     <b>Pause</b><span><kbd>P</kbd> or <kbd>Esc</kbd> / Top ⏸ button</span>
@@ -1426,8 +1426,11 @@ function updatePlayer(dt){
 
   const accel = 150, maxV = canBoost ? 220 : 120;
   forwardOf(player.obj, _v1);
-  const keyFwd = (keys['KeyW']||keys['ArrowUp']?1:0) - (keys['KeyS']||keys['ArrowDown']?0.7:0);
-  const fwdT = Math.max(-0.7, Math.min(1, keyFwd + touchState.moveY));
+  // auto-cruise: the drone always chases the crosshair, so aiming IS flying.
+  // W / joystick-forward speeds up on top of it; S / joystick-back brakes into reverse.
+  const AUTO_CRUISE = 0.6;
+  const keyFwd = (keys['KeyW']||keys['ArrowUp']?1:0) - (keys['KeyS']||keys['ArrowDown']?1.3:0);
+  const fwdT = Math.max(-0.7, Math.min(1, AUTO_CRUISE + keyFwd + touchState.moveY*1.3));
   player.axis.fwd += (fwdT - player.axis.fwd) * Math.min(1, dt*10);
   const totalFwd = player.axis.fwd;
   _v2.set(1,0,0).applyQuaternion(player.obj.quaternion);
